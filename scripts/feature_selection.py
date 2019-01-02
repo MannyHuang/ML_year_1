@@ -70,115 +70,9 @@ def find_baseline_labelled(train_withlabel, out_dir):
     test_all['y'] = 0
     test_all[['cust_id', 'y']].to_csv(os.path.join(out_dir, 'priditction.csv'), index=False)    
 
-
-'''
-Loading Data
-'''
-
-# prepare directories
-base_path = r"C:\Users\palad\Desktop\ML_year_1"
-os.chdir(base_path)
-data_dir = "data"
-out_dir = "output"
-if not os.path.exists(out_dir):
-    os.mkdir(out_dir)
-
-# import dataset
-train_x = pd.read_csv(os.path.join(data_dir, 'train_x.csv'))
-train_xy = pd.read_csv(os.path.join(data_dir, 'train_xy.csv'))
-test_all = pd.read_csv(os.path.join(data_dir, 'test_all.csv'))
-
-# remove irrelevent columns
-train_withlabel = train_xy.drop(['y', 'cust_id', 'cust_group'], axis=1)
-train_nolabel = train_x.drop(['cust_id', 'cust_group'], axis=1)
-test = test_all.drop(['cust_id', 'cust_group'], axis=1)
-Y = list(train_xy['y'] )    
-
-# replace missing values with nan
-train_withlabel.replace({-99:np.nan}, inplace=True)
-train_xy.replace({-99:np.nan}, inplace=True)
-test.replace({-99:np.nan}, inplace=True)
-
-'''
-Analyze missing data
-'''
-
-# sort based on the ratio of missing data
-sort_total_missing_data = train_withlabel.isnull().sum().sort_values(ascending=False)
-sort_percent = (train_withlabel.isnull().sum()/train_withlabel.isnull().count()).sort_values(ascending = False)
-sort_missing_data = pd.concat([sort_total_missing_data, sort_percent], axis = 1, keys = ['Total_missing_data', 'Percent'])
-
-# Ploting the ratio of missing data
-total_missing_data = train_withlabel.isnull().sum()
-percent = train_withlabel.isnull().sum()/train_withlabel.isnull().count()
-missing_data = pd.concat([total_missing_data, percent], axis = 1, keys = ['Total_missing_data', 'Percent'])
-missing_data = missing_data['Percent'].values
-
-'''
-feature selection
-'''
-
-# Dropping features with more than 99% missing values according to sort_missing_data
-numerical_features = train_withlabel.iloc[:,0:96]
-categorical_features = train_withlabel.iloc[:,95:]
-
-numerical_features.drop(['x_94','x_92'],inplace = True,axis = 1)
-categorical_features.drop(['x_129','x_132','x_134','x_116','x_110','x_112','x_118','x_113','x_126','x_131',
-               'x_133','x_135','x_137','x_114','x_138','x_102','x_123','x_125','x_107','x_130',
-               'x_119','x_128','x_115','x_109','x_117','x_127','x_103','x_111','x_108','x_136',
-               'x_124','x_104','x_106','x_120','x_122','x_121','x_105'],inplace = True,axis = 1)   
-
-
-'''
-preprocessing
-'''    
-
-# impute missing numerical variables with mean
-for i in numerical_features:
-    numerical_features[i] = numerical_features[i].fillna(numerical_features[i].mean())   
-
- # Imputing missing caterogical variables
-categorical_features = categorical_features.fillna(0)
-
-# Imputing missing caterogical variables with KNN complaint about too much missing values
-#knnOutput = KNN(k=5).complete(categorical_features)
-
-categorical_data = pd.concat([categorical_features, train_xy['y']], axis=1)
-categorical_data.to_csv(os.path.join(out_dir, 'categorical_data.csv'), index=False)
-
-    
-def something():    
-
-    
-    # Concatenating numerical_features and categorical_features
-    features = pd.concat([numerical_features, categorical_features], axis=1)
-    
-    # Split original training data into training and test sets
-    
-    x_train, x_test, y_train, y_test = train_test_split(
-        features.values, Y, test_size=0.33, random_state=42, stratify=Y) 
-    
-    X = features.values
-    y = train_xy['y'].values
-    
-    # Feature scaling
-    #sc= StandardScaler()       
-    
-    
-    ## Feature selection
-    # 1. Filter 
-    # 1.1 F-test
-    num_fea_sel = sklearn.feature_selection.f_regression(numerical_features, Y)
-    cat_fea_sel = sklearn.feature_selection.f_classif(categorical_features, Y)
-    
-    
-    # 1.2 Removing features with low variance
-    #features_2 = VarianceThreshold(threshold=3).fit_transform(features)
-    
-    # 1.3 Univariate feature selection 
-    
-    #featires_3 = SelectKBest(chi2, k=30).fit_transform(X, y)
-    
+def plot_feature(test, train_withlabel):    
+    # Concatenating training and test sets
+    data = pd.concat([train_withlabel, test], axis=1)
     
     # Comparing feature selection
     E = np.random.uniform(0, 0.1, size=(len(data.values), 20))
@@ -224,6 +118,111 @@ def something():
     plt.axis('tight')
     plt.legend(loc='upper right')
     plt.show()
+
+
+'''
+Loading Data
+'''
+
+# prepare directories
+base_path = r"C:\Users\palad\Desktop\ML_year_1"
+os.chdir(base_path)
+data_dir = "data"
+out_dir = "output"
+if not os.path.exists(out_dir):
+    os.mkdir(out_dir)
+
+# import dataset
+train_x = pd.read_csv(os.path.join(data_dir, 'train_x.csv'))
+train_xy = pd.read_csv(os.path.join(data_dir, 'train_xy.csv'))
+test_all = pd.read_csv(os.path.join(data_dir, 'test_all.csv'))
+
+# remove irrelevent columns
+train_withlabel = train_xy.drop(['y', 'cust_id', 'cust_group'], axis=1)
+train_nolabel = train_x.drop(['cust_id', 'cust_group'], axis=1)
+test = test_all.drop(['cust_id', 'cust_group'], axis=1)
+Y = list(train_xy['y'] )    
+
+# replace missing values with nan
+train_withlabel.replace({-99:np.nan}, inplace=True)
+train_xy.replace({-99:np.nan}, inplace=True)
+test.replace({-99:np.nan}, inplace=True)
+
+'''
+Analyze missing data
+'''
+
+# sort based on the ratio of missing data
+sort_total_missing_data = train_withlabel.isnull().sum().sort_values(ascending=False)
+sort_percent = (train_withlabel.isnull().sum()/train_withlabel.isnull().count()).sort_values(ascending = False)
+sort_missing_data = pd.concat([sort_total_missing_data, sort_percent], axis = 1, keys = ['Total_missing_data', 'Percent'])
+
+# Ploting the ratio of missing data
+total_missing_data = train_withlabel.isnull().sum()
+percent = train_withlabel.isnull().sum()/train_withlabel.isnull().count()
+missing_data = pd.concat([total_missing_data, percent], axis = 1, keys = ['Total_missing_data', 'Percent'])
+missing_data = missing_data['Percent'].values
+
+'''
+feature engineering
+'''
+
+# Dropping features with more than 99% missing values according to sort_missing_data
+numerical_features = train_withlabel.iloc[:,0:96]
+categorical_features = train_withlabel.iloc[:,95:]
+
+numerical_features.drop(['x_94','x_92'],inplace = True,axis = 1)
+categorical_features.drop(['x_129','x_132','x_134','x_116','x_110','x_112','x_118','x_113','x_126','x_131',
+               'x_133','x_135','x_137','x_114','x_138','x_102','x_123','x_125','x_107','x_130',
+               'x_119','x_128','x_115','x_109','x_117','x_127','x_103','x_111','x_108','x_136',
+               'x_124','x_104','x_106','x_120','x_122','x_121','x_105'],inplace = True,axis = 1)   
+
+
+'''
+preprocessing
+'''    
+
+# impute missing numerical variables with mean
+for i in numerical_features:
+    numerical_features[i] = numerical_features[i].fillna(numerical_features[i].mean())   
+
+ # Imputing missing caterogical variables
+categorical_features = categorical_features.fillna(0)
+
+# Imputing missing caterogical variables with KNN complaint about too much missing values
+#knnOutput = KNN(k=5).complete(categorical_features)
+
+categorical_data = pd.concat([categorical_features, train_xy['y']], axis=1)
+categorical_data.to_csv(os.path.join(out_dir, 'categorical_data.csv'), index=False)
+
+
+# Concatenating numerical_features and categorical_features
+features = pd.concat([numerical_features, categorical_features], axis=1)
+
+# Split original training data into training and test sets
+x_train, x_test, y_train, y_test = train_test_split(
+    features.values, Y, test_size=0.33, random_state=42, stratify=Y) 
+X = features.values
+y = train_xy['y'].values
+
+
+'''
+feature selection
+''' 
+
+# method1 : filter using f-test
+num_fea_sel = sklearn.feature_selection.f_regression(numerical_features, Y)
+cat_fea_sel = sklearn.feature_selection.f_classif(categorical_features, Y)
+    
+# method2: removing features with low variance  
+features_2 = VarianceThreshold(threshold=3).fit_transform(features)
+
+# method3: univariate feature selection
+featires_3 = SelectKBest(chi2, k=30).fit_transform(X, y)
+
+# plot features
+plot_feature(test=test, train_withlabel=train_withlabel)
+
 
 
 
