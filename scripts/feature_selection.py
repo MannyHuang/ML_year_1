@@ -42,74 +42,81 @@ from sklearn.feature_selection import RFE
 from sklearn.ensemble import GradientBoostingClassifier
 #from sklearn.lda import LDA
 
+# get the ratio of high risk customers
+def get_highrisk_ratio(tag_list):
+    Y = tag_list
+    y1_count = Y.count(1)
+    ratio = y1_count/len(Y)
+    print('highrisk customers account for :', ratio)
+    return ratio
+    
+# print shapes of all raw data
+def print_data_shapes(train_xy, train_x, test_all, train_withlabel):
+    print(train_xy.shape)
+    print(train_xy.info())
+    
+    print(train_x.shape)
+    print(train_x.info())
+    
+    print(test_all.shape)
+    print(test_all.info())
 
-## Going to the directory
-#base_path = '/Users/Manny/Desktop/DC/contest/Data'
-base_path = r"C:\Users\palad\Desktop\Data"
+    print(train_withlabel.describe())
+    
+
+# compute baseline for labelled data
+def find_baseline_labelled(train_withlabel, out_dir):
+    sns.countplot(x='y', data=train_withlabel)
+    test_all['y'] = 0
+    test_all[['cust_id', 'y']].to_csv(os.path.join(out_dir, 'priditction.csv'), index=False)    
+
+
+'''
+Loading Data
+'''
+
+# prepare directories
+base_path = r"C:\Users\palad\Desktop\ML_year_1"
 os.chdir(base_path)
+data_dir = "data"
+out_dir = "output"
+if not os.path.exists(out_dir):
+    os.mkdir(out_dir)
 
+# import dataset
+train_x = pd.read_csv(os.path.join(data_dir, 'train_x.csv'))
+train_xy = pd.read_csv(os.path.join(data_dir, 'train_xy.csv'))
+test_all = pd.read_csv(os.path.join(data_dir, 'test_all.csv'))
 
-## Importing the dataset
-train_x = pd.read_csv('train_x.csv')
-train_xy = pd.read_csv('train_xy.csv')
-test_all = pd.read_csv('test_all.csv')
+# remove irrelevent columns
 train_withlabel = train_xy.drop(['y', 'cust_id', 'cust_group'], axis=1)
 train_nolabel = train_x.drop(['cust_id', 'cust_group'], axis=1)
 test = test_all.drop(['cust_id', 'cust_group'], axis=1)
-Y = list(train_xy['y'] )
-#features = [i for i in train_xy.columns.values if i not in ['cust_id','cust_group','y']]
+Y = list(train_xy['y'] )    
 
-
+# replace missing values with nan
 train_withlabel.replace({-99:np.nan}, inplace=True)
 train_xy.replace({-99:np.nan}, inplace=True)
 test.replace({-99:np.nan}, inplace=True)
 
+'''
+Analyze missing data
+'''
 
-## Visualizing
-
-#print(train_xy.info())
-#print(train_x.info())
-#print(test_all.info())
-#print(train_x.shape)
-#print(train_xy.shape)
-#print(test_all.shape)
-#print(train_withlabel.describe())
-
-# Geting the proportion of high-risk customers
-y1_count = Y.count(1)
-#print('high-risk customers account for :', y1_count/len(Y))
-
-# Baseline
-#sns.countplot(x='y', data=train_xy)
-#test_all['y'] = 0
-#test_all[['cust_id', 'y']].to_csv('priditction.csv', index=False)
-
-# Sorting the proportion of missing data
-
+# sort based on the ratio of missing data
 sort_total_missing_data = train_withlabel.isnull().sum().sort_values(ascending=False)
 sort_percent = (train_withlabel.isnull().sum()/train_withlabel.isnull().count()).sort_values(ascending = False)
 sort_missing_data = pd.concat([sort_total_missing_data, sort_percent], axis = 1, keys = ['Total_missing_data', 'Percent'])
-#print(sort_missing_data.head(157)
 
-# Ploting the proportion of missing data
+# Ploting the ratio of missing data
 total_missing_data = train_withlabel.isnull().sum()
 percent = train_withlabel.isnull().sum()/train_withlabel.isnull().count()
 missing_data = pd.concat([total_missing_data, percent], axis = 1, keys = ['Total_missing_data', 'Percent'])
 missing_data = missing_data['Percent'].values
 
-# Distribution of features with complete data
-#train_xy['x_1'].plot(kind='kde')
-
-
-# Storing target variable of training data in a safe place
-y_train =train_xy.y
-
-# Concatenating training and test sets
-data = pd.concat([train_withlabel, test], axis=1)
-#print(data.info())
-    
-
-## Preprocessing 
+'''
+feature selection
+'''
 
 # Dropping features with more than 99% missing values according to sort_missing_data
 numerical_features = train_withlabel.iloc[:,0:96]
@@ -120,100 +127,143 @@ categorical_features.drop(['x_129','x_132','x_134','x_116','x_110','x_112','x_11
                'x_133','x_135','x_137','x_114','x_138','x_102','x_123','x_125','x_107','x_130',
                'x_119','x_128','x_115','x_109','x_117','x_127','x_103','x_111','x_108','x_136',
                'x_124','x_104','x_106','x_120','x_122','x_121','x_105'],inplace = True,axis = 1)   
-      
 
-# Imputing missing numerical variables with mean
+
+'''
+preprocessing
+'''    
+
+# impute missing numerical variables with mean
 for i in numerical_features:
-    numerical_features[i] = numerical_features[i].fillna(numerical_features[i].mean())      
+    numerical_features[i] = numerical_features[i].fillna(numerical_features[i].mean())   
 
-# Imputing missing numerical variables with meadian
-#for i in numerical_features:
-#    numerical_features[i] = numerical_features[i].fillna(numerical_features[i].meadian())     
-#print(numerical_features.describe())
-    
-# Imputing missing caterogical variables with KNN using R, for this notebook cannot install relevant package
-#knnOutput = KNN(k=5).complete(categorical_features)
+ # Imputing missing caterogical variables
 categorical_features = categorical_features.fillna(0)
-#categorical_features['x_141'] = categorical_features['x_141'].fillna('0')
-#categorical_features['x_142'] = categorical_features['x_142'].fillna('0')
+
+# Imputing missing caterogical variables with KNN complaint about too much missing values
+#knnOutput = KNN(k=5).complete(categorical_features)
 
 categorical_data = pd.concat([categorical_features, train_xy['y']], axis=1)
-categorical_data.to_csv('categorical_data.csv', index=False)
+categorical_data.to_csv(os.path.join(out_dir, 'categorical_data.csv'), index=False)
 
-# Concatenating numerical_features and categorical_features
-features = pd.concat([numerical_features, categorical_features], axis=1)
+    
+def something():    
 
-# Split original training data into training and test sets
+    
+    # Concatenating numerical_features and categorical_features
+    features = pd.concat([numerical_features, categorical_features], axis=1)
+    
+    # Split original training data into training and test sets
+    
+    x_train, x_test, y_train, y_test = train_test_split(
+        features.values, Y, test_size=0.33, random_state=42, stratify=Y) 
+    
+    X = features.values
+    y = train_xy['y'].values
+    
+    # Feature scaling
+    #sc= StandardScaler()       
+    
+    
+    ## Feature selection
+    # 1. Filter 
+    # 1.1 F-test
+    num_fea_sel = sklearn.feature_selection.f_regression(numerical_features, Y)
+    cat_fea_sel = sklearn.feature_selection.f_classif(categorical_features, Y)
+    
+    
+    # 1.2 Removing features with low variance
+    #features_2 = VarianceThreshold(threshold=3).fit_transform(features)
+    
+    # 1.3 Univariate feature selection 
+    
+    #featires_3 = SelectKBest(chi2, k=30).fit_transform(X, y)
+    
+    
+    # Comparing feature selection
+    E = np.random.uniform(0, 0.1, size=(len(data.values), 20))
+    X_ = np.hstack((features.values, E))
+    
+    
+    plt.figure(1)
+    plt.clf()
+    
+    X_indices = np.arange(X_.shape[-1])
+    
+    selector = SelectPercentile(f_classif, percentile=10)
+    selector.fit(X_, y)
+    scores = -np.log10(selector.pvalues_)
+    scores /= scores.max()
+    plt.bar(X_indices - .45, scores, width=.2,
+            label=r'Univariate score ($-Log(p_{value})$)', color='darkorange',
+            edgecolor='black')
+    
+    clf = svm.SVC(kernel='linear')
+    clf.fit(X_, y)
+    
+    svm_weights = (clf.coef_ ** 2).sum(axis=0)
+    svm_weights /= svm_weights.max()
+    
+    plt.bar(X_indices - .25, svm_weights, width=.2, label='SVM weight',
+            color='navy', edgecolor='black')
+    
+    clf_selected = svm.SVC(kernel='linear')
+    clf_selected.fit(selector.transform(X_), y)
+    
+    svm_weights_selected = (clf_selected.coef_ ** 2).sum(axis=0)
+    svm_weights_selected /= svm_weights_selected.max()
+    
+    plt.bar(X_indices[selector.get_support()] - .05, svm_weights_selected,
+            width=.2, label='SVM weights after selection', color='c',
+            edgecolor='black')
+    
+    
+    plt.title("Comparing feature selection")
+    plt.xlabel('Feature number')
+    plt.yticks(())
+    plt.axis('tight')
+    plt.legend(loc='upper right')
+    plt.show()
 
-x_train, x_test, y_train, y_test = train_test_split(
-    features.values, Y, test_size=0.33, random_state=42, stratify=Y) 
-
-X = features.values
-y = train_xy['y'].values
-
-# Feature scaling
-#sc= StandardScaler()       
 
 
-## Feature selection
-# 1. Filter 
-# 1.1 F-test
-#num_fea_sel = sklearn.feature_selection.f_regression(numerical_features, Y)
-#cat_fea_sel = sklearn.feature_selection.f_classif(categorical_features, Y)
 
 
-# 1.2 Removing features with low variance
-#features_2 = VarianceThreshold(threshold=3).fit_transform(features)
-
-# 1.3 Univariate feature selection 
-
-#featires_3 = SelectKBest(chi2, k=30).fit_transform(X, y)
 
 
-# Comparing feature selection
-E = np.random.uniform(0, 0.1, size=(len(data.values), 20))
-X_ = np.hstack((features.values, E))
 
 
-plt.figure(1)
-plt.clf()
-
-X_indices = np.arange(X_.shape[-1])
-
-selector = SelectPercentile(f_classif, percentile=10)
-selector.fit(X_, y)
-scores = -np.log10(selector.pvalues_)
-scores /= scores.max()
-plt.bar(X_indices - .45, scores, width=.2,
-        label=r'Univariate score ($-Log(p_{value})$)', color='darkorange',
-        edgecolor='black')
-
-clf = svm.SVC(kernel='linear')
-clf.fit(X_, y)
-
-svm_weights = (clf.coef_ ** 2).sum(axis=0)
-svm_weights /= svm_weights.max()
-
-plt.bar(X_indices - .25, svm_weights, width=.2, label='SVM weight',
-        color='navy', edgecolor='black')
-
-clf_selected = svm.SVC(kernel='linear')
-clf_selected.fit(selector.transform(X_), y)
-
-svm_weights_selected = (clf_selected.coef_ ** 2).sum(axis=0)
-svm_weights_selected /= svm_weights_selected.max()
-
-plt.bar(X_indices[selector.get_support()] - .05, svm_weights_selected,
-        width=.2, label='SVM weights after selection', color='c',
-        edgecolor='black')
 
 
-plt.title("Comparing feature selection")
-plt.xlabel('Feature number')
-plt.yticks(())
-plt.axis('tight')
-plt.legend(loc='upper right')
-plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 '''
