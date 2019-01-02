@@ -34,6 +34,7 @@ from sklearn.preprocessing import PolynomialFeatures
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import LinearSVC
 from sklearn.metrics import classification_report
+from sklearn.pipeline import Pipeline
 #from imblearn.over_sampling import RandomOverSampler
 from collections import Counter
 #from imblearn.combine import SMOTEENN
@@ -118,6 +119,16 @@ def plot_feature(test, train_withlabel):
     plt.axis('tight')
     plt.legend(loc='upper right')
     plt.show()
+
+# get the indices of selected features
+def get_feature_indices(data_set, feature_set):
+    data_set = data_set.values
+    fea_index = []
+    for A_col in np.arange(data_set.shape[1]):
+        for B_col in np.arange(feature_set.shape[1]):
+            if (data_set[:, A_col] == feature_set[:, B_col]).all():
+                fea_index.append(A_col)
+    return fea_index
 
 
 '''
@@ -226,32 +237,34 @@ lsvc = LinearSVC(C=0.01, penalty="l1", dual=False).fit(X, y)
 model = SelectFromModel(lsvc, prefit=True)
 features_4 = model.transform(X)
 
-# plot features
-# plot_feature(test=test, train_withlabel=train_withlabel)
+# method5: Tree-based feature selection
+clf_5 = ExtraTreesClassifier(n_estimators=50)
+clf_5 = clf_5.fit(X, y)
+clf_5.feature_importances_ 
+model_5 = SelectFromModel(clf_5, prefit=True)
+features_5 = model_5.transform(X)
+
+# method6: LinearSVC
+lsvc = LinearSVC(C=0.01, penalty="l1", dual=False).fit(X, y)
+model = SelectFromModel(lsvc, prefit=True)
+features_6 = model.transform(X)
+
+
 
 # output features as csv
 np.savetxt(os.path.join(out_dir, 'features_2.csv'), features_2, delimiter=",")
 np.savetxt(os.path.join(out_dir, 'features_3.csv'), features_3, delimiter=",")
 np.savetxt(os.path.join(out_dir, 'features_4.csv'), features_4, delimiter=",")
+np.savetxt(os.path.join(out_dir, 'features_5.csv'), features_5, delimiter=",")
+np.savetxt(os.path.join(out_dir, 'features_6.csv'), features_6, delimiter=",")
 
 
-"""
-# 1.5 Tree-based feature selection
-clf_5 = ExtraTreesClassifier(n_estimators=50)
-clf_5 = clf_5.fit(X, y)
-clf_5.feature_importances_ 
-model_5 = SelectFromModel(clf_5, prefit=True)
-feature_5 = model_5.transform(X)
-"""
+# double check if the index of the selected feature set is a subset of the original features
+feature_indices = get_feature_indices(data_set = features, feature_set = features_4)
 
-'''
-# 1.6 Feature selection as part of a pipeline
-clf = Pipeline([
-  ('feature_selection', SelectFromModel(LinearSVC(penalty="l1"))),
-  ('classification', RandomForestClassifier())
-])
-clf.fit(X, y)
-'''
+# plot features
+# plot_feature(test=test, train_withlabel=train_withlabel)
+
 
 """
 # 2. Wrapper
