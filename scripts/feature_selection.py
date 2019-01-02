@@ -218,59 +218,22 @@ cat_fea_sel = sklearn.feature_selection.f_classif(categorical_features, Y)
 features_2 = VarianceThreshold(threshold=3).fit_transform(features)
 
 # method3: univariate feature selection
-featires_3 = SelectKBest(chi2, k=30).fit_transform(X, y)
-
-# plot features
-plot_feature(test=test, train_withlabel=train_withlabel)
+features_3 = SelectKBest(chi2, k=30).fit_transform(X, y)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-'''
-# 1.4 L1-based feature selection
+# method4: L1-based feature selection
 lsvc = LinearSVC(C=0.01, penalty="l1", dual=False).fit(X, y)
 model = SelectFromModel(lsvc, prefit=True)
-X_new4 = model.transform(X)
-'''
+features_4 = model.transform(X)
+
+# plot features
+# plot_feature(test=test, train_withlabel=train_withlabel)
+
+# output features as csv
+np.savetxt(os.path.join(out_dir, 'features_2.csv'), features_2, delimiter=",")
+np.savetxt(os.path.join(out_dir, 'features_3.csv'), features_3, delimiter=",")
+np.savetxt(os.path.join(out_dir, 'features_4.csv'), features_4, delimiter=",")
+
 
 """
 # 1.5 Tree-based feature selection
