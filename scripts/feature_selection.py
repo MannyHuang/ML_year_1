@@ -130,48 +130,6 @@ def get_feature_indices(data_set, feature_set):
                 fea_index.append(A_col)
     return fea_index
 
-# class LR
-class LR(LogisticRegression):
-    def __init__(self, threshold=0.01, dual=False, tol=1e-4, C=1.0,
-                 fit_intercept=True, intercept_scaling=1, class_weight=None,
-                 random_state=None, solver='liblinear', max_iter=100,
-                 multi_class='ovr', verbose=0, warm_start=False, n_jobs=1):
-
-        self.threshold = threshold
-        LogisticRegression.__init__(self, penalty='l1', dual=dual, tol=tol, C=C,
-                 fit_intercept=fit_intercept, intercept_scaling=intercept_scaling, class_weight=class_weight,
-                 random_state=random_state, solver=solver, max_iter=max_iter,
-                 multi_class=multi_class, verbose=verbose, warm_start=warm_start, n_jobs=n_jobs)
- 
-        self.l2 = LogisticRegression(penalty='l2', dual=dual, tol=tol, C=C, fit_intercept=fit_intercept, intercept_scaling=intercept_scaling, class_weight = class_weight, random_state=random_state, solver=solver, max_iter=max_iter, multi_class=multi_class, verbose=verbose, warm_start=warm_start, n_jobs=n_jobs)
-
-    def fit(self, X, y, sample_weight=None):
-     
-        super(LR, self).fit(X, y, sample_weight=sample_weight)
-        self.coef_old_ = self.coef_.copy()
-        self.l2.fit(X, y, sample_weight=sample_weight)
-
-        cntOfRow, cntOfCol = self.coef_.shape
-
-        for i in range(cntOfRow):
-            for j in range(cntOfCol):
-                coef = self.coef_[i][j]
-      
-                if coef != 0:
-                    idx = [j]
-       
-                    coef1 = self.l2.coef_[i][j]
-                    for k in range(cntOfCol):
-                        coef2 = self.l2.coef_[i][k]
-     
-                        if abs(coef1-coef2) < self.threshold and j != k and self.coef_[i][k] == 0:
-                            idx.append(k)
-
-                    mean = coef / len(idx)
-                    self.coef_[i][idx] = mean
-        return self
-
-
 '''
 Loading Data
 '''
@@ -285,13 +243,25 @@ clf_5.feature_importances_
 model_5 = SelectFromModel(clf_5, prefit=True)
 features_5 = model_5.transform(X)
 
-# method6: Logistic Regression
+# method6: wrapper: Feature ranking with recursive feature elimination.
 features_6 = RFE(estimator=LogisticRegression(), n_features_to_select=35).fit_transform(X, y)
 
-# method7: LR based on L1 and L2
-features_7 = SelectFromModel(LR(threshold=0.5, C=0.1)).fit_transform(X, y)
+# method7: embedded: Logistic Regression based on L1 
+features_7 = SelectFromModel(LogisticRegression(penalty="l1", C=0.1)).fit_transform(X, y)
 
-# method: LR based on L1 and L2
+# method8: embedded: GBDT
+features_8 = SelectFromModel(GradientBoostingClassifier()).fit_transform(X, y)
+
+# method9: feature extraction: dimension reduction using PCA
+pca = PCA(n_components = 30)
+x_train = pca.fit_transform(x_train)
+x_test = pca.transform(x_test)
+explained_variance = pca.explained_variance_ratio_  
+features_9 = PCA(n_components=30).fit_transform(X, y)
+
+# method10: feature extraction: dimension reduction using LDA
+#features_10 = LDA(n_components=30).fit_transform(X, y)
+
 
 # output features as csv
 np.savetxt(os.path.join(out_dir, 'features_2.csv'), features_2, delimiter=",")
@@ -299,39 +269,15 @@ np.savetxt(os.path.join(out_dir, 'features_3.csv'), features_3, delimiter=",")
 np.savetxt(os.path.join(out_dir, 'features_4.csv'), features_4, delimiter=",")
 np.savetxt(os.path.join(out_dir, 'features_5.csv'), features_5, delimiter=",")
 np.savetxt(os.path.join(out_dir, 'features_6.csv'), features_6, delimiter=",")
+np.savetxt(os.path.join(out_dir, 'features_7.csv'), features_7, delimiter=",")
+np.savetxt(os.path.join(out_dir, 'features_8.csv'), features_8, delimiter=",")
+np.savetxt(os.path.join(out_dir, 'features_9.csv'), features_9, delimiter=",")
+#np.savetxt(os.path.join(out_dir, 'features_10.csv'), features_10, delimiter=",")
 
 
 # double check if the index of the selected feature set is a subset of the original features
 feature_indices = get_feature_indices(data_set = features, feature_set = features_4)
 
-# plot features
-# plot_feature(test=test, train_withlabel=train_withlabel)
-
-
-"""
-
-
-# 3. Embedded
-# based on L1
-SelectFromModel(LogisticRegression(penalty="l1", C=0.1)).fit_transform(X, y)
-
-# based on L1 and L2
-SelectFromModel(LR(threshold=0.5, C=0.1)).fit_transform(X, y)
-
-# GBDT
-SelectFromModel(GradientBoostingClassifier()).fit_transform(X, y)
-
-
-# 4. Lowering the dimension
-# 4.1 Applying PCA
-pca = PCA(n_components = None)
-x_train = pca.fit_transform(x_train)
-x_test = pca.transform(x_test)
-explained_variance = pca.explained_variance_ratio_
-
-
-# 4.2 Applying LDA
-LDA(n_components=None).fit_transform(X, y)
 
 
 
@@ -399,4 +345,3 @@ clf.fit(x, y)
 
 # logisticregression
 #clf = Lo
-"""
