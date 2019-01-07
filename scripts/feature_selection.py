@@ -9,6 +9,7 @@ Created on Fri Oct 12 23:45:12 2018
 # Importing the libraries
 import pandas as pd
 import os
+import time
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -42,6 +43,14 @@ from sklearn.ensemble import ExtraTreesClassifier
 from sklearn.feature_selection import RFE
 from sklearn.ensemble import GradientBoostingClassifier
 #from sklearn.lda import LDA
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import GradientBoostingClassifier
+from lightgbm import LGBMClassifier
+from sklearn.metrics import roc_curve, auc
+from sklearn.model_selection import GridSearchCV
+from sklearn import metrics
+import lightgbm as lgb
+
 
 # get the ratio of high risk customers
 def get_highrisk_ratio(tag_list):
@@ -130,6 +139,53 @@ def get_feature_indices(data_set, feature_set):
                 fea_index.append(A_col)
     return fea_index
 
+def cv_parameter_tuning(clf, features, y):
+    param_test = {
+        'boosting_type': ['gbdt', 'dart', 'goss', 'rf'],
+        'n_estimators': [50, 200, 50],
+        'learning_rate': [0.01, 0.03, 0.05, 0.07],
+        'num_leaves': [20, 30, 40],
+        'max_depth': [4, 6, 8],
+        'reg_alpha': [0.0, 0.02, 0.04],
+        'reg_lambda': [0.0, 0.03, 0.06],
+        'min_split_gain': [0, 0.02],
+        'min_child_weight': [0.001, 0.5, 10, 40]
+    }
+    gsearch = GridSearchCV(clf, param_grid=param_test, scoring='roc_auc', cv=5, n_jobs=-1)
+    gsearch.fit(features, y)
+    print(gsearch.best_params_)
+
+
+def train_result(features, y, times):
+    Accuracy = 0.0
+    AUC = 0.0
+    for time in range(times):
+        xy_x_train, xy_x_test, xy_y_train, xy_y_test = train_test_split(features, y, test_size=0.4)
+        """n_jobs=-1,
+          n_estimators=100,
+          learning_rate=0.1,
+          num_leaves=20,
+          max_depth=4,
+          reg_alpha=0.00,
+          reg_lambda=0.00,
+          # boosting_type='rf'"""
+        LGBM = LGBMClassifier(learning_rate=0.01, min_split_gain=0.02, reg_alpha=0.04,
+                              min_child_weight=0, reg_lambda=0.07, n_estimators=200, max_depth=4, num_leaves=20
+                              )
+        LGBM.fit(x_train, y_train)
+        y_pred = LGBM.predict(x_test)
+        y_predict = LGBM.predict_proba(x_test)[:, 1]
+        Accuracy += metrics.accuracy_score(y_test, y_pred)
+        AUC += metrics.roc_auc_score(y_test, y_predict)
+    Accuracy /= times
+    AUC /= times
+    print("Accuracy : %.4g" % Accuracy)
+    print("AUC Score (Train): %f" % AUC)
+
+
+
+
+
 '''
 Loading Data
 '''
@@ -153,33 +209,41 @@ train_nolabel = train_x.drop(['cust_id', 'cust_group'], axis=1)
 test = test_all.drop(['cust_id', 'cust_group'], axis=1)
 Y = list(train_xy['y'] )    
 
+
+
 # replace missing values with nan
-train_withlabel.replace({-99:np.nan}, inplace=True)
-train_xy.replace({-99:np.nan}, inplace=True)
-test.replace({-99:np.nan}, inplace=True)
+#train_withlabel.replace({-99:np.nan}, inplace=True)
+#train_xy.replace({-99:np.nan}, inplace=True)
+#test.replace({-99:np.nan}, inplace=True)
+
+
+
 
 '''
 Analyze missing data
 '''
 
 # sort based on the ratio of missing data
-sort_total_missing_data = train_withlabel.isnull().sum().sort_values(ascending=False)
-sort_percent = (train_withlabel.isnull().sum()/train_withlabel.isnull().count()).sort_values(ascending = False)
-sort_missing_data = pd.concat([sort_total_missing_data, sort_percent], axis = 1, keys = ['Total_missing_data', 'Percent'])
+#sort_total_missing_data = train_withlabel.isnull().sum().sort_values(ascending=False)
+#sort_percent = (train_withlabel.isnull().sum()/train_withlabel.isnull().count()).sort_values(ascending = False)
+#sort_missing_data = pd.concat([sort_total_missing_data, sort_percent], axis = 1, keys = ['Total_missing_data', 'Percent'])
 
 # Ploting the ratio of missing data
-total_missing_data = train_withlabel.isnull().sum()
-percent = train_withlabel.isnull().sum()/train_withlabel.isnull().count()
-missing_data = pd.concat([total_missing_data, percent], axis = 1, keys = ['Total_missing_data', 'Percent'])
-missing_data = missing_data['Percent'].values
+#total_missing_data = train_withlabel.isnull().sum()
+#percent = train_withlabel.isnull().sum()/train_withlabel.isnull().count()
+#missing_data = pd.concat([total_missing_data, percent], axis = 1, keys = ['Total_missing_data', 'Percent'])
+#missing_data = missing_data['Percent'].values
+
+
 
 '''
 feature engineering
 '''
 
 # Dropping features with more than 99% missing values according to sort_missing_data
-numerical_features = train_withlabel.iloc[:,0:96]
+numerical_features = train_withlabel.iloc[:,0:95]
 categorical_features = train_withlabel.iloc[:,95:]
+train_nolabel = train_nolabel.iloc[:,:]
 
 numerical_features.drop(['x_94','x_92'],inplace = True,axis = 1)
 categorical_features.drop(['x_129','x_132','x_134','x_116','x_110','x_112','x_118','x_113','x_126','x_131',
@@ -187,17 +251,27 @@ categorical_features.drop(['x_129','x_132','x_134','x_116','x_110','x_112','x_11
                'x_119','x_128','x_115','x_109','x_117','x_127','x_103','x_111','x_108','x_136',
                'x_124','x_104','x_106','x_120','x_122','x_121','x_105'],inplace = True,axis = 1)   
 
+test.drop(['x_94','x_92','x_129','x_132','x_134','x_116','x_110','x_112','x_118','x_113','x_126','x_131',
+           'x_133','x_135','x_137','x_114','x_138','x_102','x_123','x_125','x_107','x_130','x_119','x_128',
+           'x_115','x_109','x_117','x_127','x_103','x_111','x_108','x_136', 'x_124','x_104','x_106',
+           'x_120','x_122','x_121','x_105'],inplace = True,axis = 1)
 
+train_nolabel.drop(['x_94','x_92','x_129','x_132','x_134','x_116','x_110','x_112','x_118','x_113','x_126','x_131',
+           'x_133','x_135','x_137','x_114','x_138','x_102','x_123','x_125','x_107','x_130','x_119','x_128',
+           'x_115','x_109','x_117','x_127','x_103','x_111','x_108','x_136', 'x_124','x_104','x_106',
+           'x_120','x_122','x_121','x_105'],inplace = True,axis = 1)    
+    
+    
 '''
 preprocessing
 '''    
 
 # impute missing numerical variables with mean
-for i in numerical_features:
-    numerical_features[i] = numerical_features[i].fillna(numerical_features[i].mean())   
+#for i in numerical_features:
+#    numerical_features[i] = numerical_features[i].fillna(numerical_features[i].mean())   
 
  # Imputing missing caterogical variables
-categorical_features = categorical_features.fillna(0)
+#categorical_features = categorical_features.fillna(0)
 
 # Imputing missing caterogical variables with KNN complaint about too much missing values
 #knnOutput = KNN(k=5).complete(categorical_features)
@@ -214,7 +288,15 @@ x_train, x_test, y_train, y_test = train_test_split(
     features.values, Y, test_size=0.33, random_state=42, stratify=Y) 
 X = features.values
 y = train_xy['y'].values
+train_y = train_xy.y
+cust_group = train_xy.cust_group
 
+'''
+visualizing
+'''
+
+#correlation map
+ 
 
 '''
 feature selection
@@ -225,10 +307,14 @@ num_fea_sel = sklearn.feature_selection.f_regression(numerical_features, Y)
 cat_fea_sel = sklearn.feature_selection.f_classif(categorical_features, Y)
     
 # method2: removing features with low variance  
-features_2 = VarianceThreshold(threshold=3).fit_transform(features)
+features_2 = VarianceThreshold(1).fit_transform(features)
+Features_2 = pd.DataFrame([features_2])
+#correlation map
+f,ax = plt.subplots(figsize=(40, 40))
+sns.heatmap(features_2.corr(), annot=True, linewidths=.9, fmt= '.1f',ax=ax)
 
 # method3: univariate feature selection
-features_3 = SelectKBest(chi2, k=30).fit_transform(X, y)
+#features_3 = SelectKBest(chi2, k=90).fit_transform(X, y)
 
 
 # method4: L1-based feature selection
@@ -237,14 +323,14 @@ model = SelectFromModel(lsvc, prefit=True)
 features_4 = model.transform(X)
 
 # method5: Tree-based feature selection
-clf_5 = ExtraTreesClassifier(n_estimators=50)
+clf_5 = ExtraTreesClassifier(n_estimators=90)
 clf_5 = clf_5.fit(X, y)
 clf_5.feature_importances_ 
 model_5 = SelectFromModel(clf_5, prefit=True)
 features_5 = model_5.transform(X)
 
 # method6: wrapper: Feature ranking with recursive feature elimination.
-features_6 = RFE(estimator=LogisticRegression(), n_features_to_select=35).fit_transform(X, y)
+features_6 = RFE(estimator=LogisticRegression(), n_features_to_select=100).fit_transform(X, y)
 
 # method7: embedded: Logistic Regression based on L1 
 features_7 = SelectFromModel(LogisticRegression(penalty="l1", C=0.1)).fit_transform(X, y)
@@ -253,19 +339,15 @@ features_7 = SelectFromModel(LogisticRegression(penalty="l1", C=0.1)).fit_transf
 features_8 = SelectFromModel(GradientBoostingClassifier()).fit_transform(X, y)
 
 # method9: feature extraction: dimension reduction using PCA
-pca = PCA(n_components = 30)
-x_train = pca.fit_transform(x_train)
-x_test = pca.transform(x_test)
+pca = PCA(n_components = 100)
+train_nolabel = pca.fit_transform(train_nolabel)
+test_all = pca.transform(test)
 explained_variance = pca.explained_variance_ratio_  
-features_9 = PCA(n_components=30).fit_transform(X, y)
-
-# method10: feature extraction: dimension reduction using LDA
-#features_10 = LDA(n_components=30).fit_transform(X, y)
-
+features_9 = PCA(n_components=100).fit_transform(test, y)
 
 # output features as csv
 np.savetxt(os.path.join(out_dir, 'features_2.csv'), features_2, delimiter=",")
-np.savetxt(os.path.join(out_dir, 'features_3.csv'), features_3, delimiter=",")
+#np.savetxt(os.path.join(out_dir, 'features_3.csv'), features_3, delimiter=",")
 np.savetxt(os.path.join(out_dir, 'features_4.csv'), features_4, delimiter=",")
 np.savetxt(os.path.join(out_dir, 'features_5.csv'), features_5, delimiter=",")
 np.savetxt(os.path.join(out_dir, 'features_6.csv'), features_6, delimiter=",")
@@ -274,53 +356,84 @@ np.savetxt(os.path.join(out_dir, 'features_8.csv'), features_8, delimiter=",")
 np.savetxt(os.path.join(out_dir, 'features_9.csv'), features_9, delimiter=",")
 #np.savetxt(os.path.join(out_dir, 'features_10.csv'), features_10, delimiter=",")
 
-
 # double check if the index of the selected feature set is a subset of the original features
-feature_indices = get_feature_indices(data_set = features, feature_set = features_4)
+features2_indices = get_feature_indices(data_set = features, feature_set = features_2)
 
+
+# method10: feature extraction: dimension reduction using LDA
+#features_10 = LDA(n_components=30).fit_transform(X, y)
+
+'''
+rank
+'''
+
+print("start：********************************")
+start = time.time()
+
+print('......................Start train all data .......................')
+
+train = lgb.Dataset(features, y)
+
+params = {
+    'boosting_type': 'gbdt',
+    'objective': 'binary',
+    'metric': {'auc'},
+    'max_depth': 4,
+    'min_child_weight': 6,
+    'num_leaves': 16,
+    'learning_rate': 0.02,
+    'feature_fraction': 0.7,
+    'bagging_fraction': 0.7,
+    'bagging_freq': 5,
+    'lambda_l1':0.25,
+    'lambda_l2':0.5,
+    'scale_pos_weight':1,
+}
+model = lgb.train(params,
+                train,
+                num_boost_round=450,
+                valid_sets=train,
+                early_stopping_rounds=100,
+                verbose_eval=100)
+
+end = time.time()
+print("......................run with time: ",(end - start) / 60.0 )
+print("over:*********************************")
+
+lgb.plot_importance(model,max_num_features = 30,figsize=(20,10))
+plt.show()
+
+df = pd.DataFrame({'feature': features,'importance': model.feature_importance()}).sort_values(by='importance',ascending = False) 
+use = df.loc[df['importance']!=0,'feature'].tolist()
+print('No. of important features: ',len(use))
+print('important features：',use)
 
 
 
 '''
-## Decision tree classifier
+model
+'''
 
-train_set = features.iloc[:15000]
-validation_set = features.iloc[:15000]
-
-x = train_set.values
-test = test.values
-y = y_train.values
-
-
-# Setup the hyperparameter grid
+# model1： decision tree 
 dep = np.arange(1,9)
 param_grid = {'max_depth': dep}
-
-# Instantiate a decision tree classifier 
 clf = tree.DecisionTreeClassifier()
-
-# Instantiate the GridSearchCV object
 clf_cv = GridSearchCV(clf, param_grid=param_grid, cv=5)
 
-clf_cv.fit(x, y)
+clf_cv.fit(features_2, y)
 print("Tuned Decision Tree Parameters: {}".format(clf_cv.best_params_))
 print("Best score is {}".format(clf_cv.best_score_))     
 
-
-
-# Setup arrays to store train and test accuracies
 dep = np.arange(1, 9)
 train_accuracy = np.empty(len(dep))
-test_accuracy = np.empty(len(dep))
+test_accuracy = np.empty(len(dep))      
 
-# Loop over different values of k
 for i, k in enumerate(dep):
     clf = tree.DecisionTreeClassifier(max_depth=k)
     clf.fit(x_train, y_train)
     train_accuracy[i] = clf.score(x_train, y_train)
     test_accuracy[i] = clf.score(x_test, y_test)
-
-# Generate plot
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
 plt.title('clf: Varying depth of tree')
 plt.plot(dep, test_accuracy, label = 'Testing Accuracy')
 plt.plot(dep, train_accuracy, label = 'Training Accuracy')
@@ -329,19 +442,24 @@ plt.xlabel('Depth of tree')
 plt.ylabel('Accuracy')
 plt.show()    
 
-clf = tree.DecisionTreeClassifier(max_depth=3)
-clf.fit(x, y)
-#y_predict = clf.predict(test)
-'''
+clf = tree.DecisionTreeClassifier(max_depth=1)
+clf.fit(features_2, y)
+y_predict1 = clf.predict(test)
+np.savetxt(os.path.join(out_dir, 'y_predict1.csv'), y_predict1, delimiter=",")
+
+#model2: LGBM
+LGBM_model = LGBMClassifier(n_jobs=-1, learning_rate=0.01, min_split_gain=0.02, reg_alpha=0.04,
+                            min_child_weight=0, reg_lambda=0.07, n_estimators=200, max_depth=4, num_leaves=20
+                            )
+LGBM_model.fit(features, y)
+y_predict2 = LGBM_model.predict_proba(test)[:, 1]
+
+np.savetxt(os.path.join(out_dir, 'y_predict2.csv'), y_predict2, delimiter=",")
 
 
-# over-sampling
-#ros = RandomOverSampler(random_state=0)
-#X_resampled, y_resampled = ros.fit_sample(X_train, Y)
+
 
 #smote_enn = SMOTEENN(random_state=0)
 #X_resampled, y_resampled = smote_enn.fit_sample(X_train, Y)
 #sorted(Counter(y_resampled).items())
 
-# logisticregression
-#clf = Lo
