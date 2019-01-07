@@ -50,7 +50,11 @@ from sklearn.metrics import roc_curve, auc
 from sklearn.model_selection import GridSearchCV
 from sklearn import metrics
 import lightgbm as lgb
-
+import xgboost as xgb 
+import operator 
+from xgboost import XGBClassifier
+from matplotlib import pyplot
+from xgboost import plot_importance
 
 # get the ratio of high risk customers
 def get_highrisk_ratio(tag_list):
@@ -183,6 +187,13 @@ def train_result(features, y, times):
     print("AUC Score (Train): %f" % AUC)
 
 
+def my_plot_importance(booster, figsize, **kwargs): 
+    fig, ax = plt.subplots(1,1,figsize=figsize)
+    return plot_importance(booster=booster, ax=ax, **kwargs)
+    
+
+
+
 
 
 
@@ -219,6 +230,7 @@ Y = list(train_xy['y'] )
 
 
 
+
 '''
 Analyze missing data
 '''
@@ -233,6 +245,16 @@ Analyze missing data
 #percent = train_withlabel.isnull().sum()/train_withlabel.isnull().count()
 #missing_data = pd.concat([total_missing_data, percent], axis = 1, keys = ['Total_missing_data', 'Percent'])
 #missing_data = missing_data['Percent'].values
+
+# sort missing value by raw
+#missing_value_feature = train_withlabel.shape[1] - train_withlabel.count(axis=1)
+#train_xy['missing_values'] = missing_value_feature
+#train_withlabel['missing_values'] = missing_value_feature
+#stat = train_xy[['y', 'missing_values']]
+
+#stat.plot.scatter(x='y', y='missing_values')
+
+#np.savetxt(os.path.join(out_dir, 'stat.csv'), stat, delimiter=",")
 
 
 
@@ -289,14 +311,11 @@ x_train, x_test, y_train, y_test = train_test_split(
 X = features.values
 y = train_xy['y'].values
 train_y = train_xy.y
-cust_group = train_xy.cust_group
-
-'''
-visualizing
-'''
 
 #correlation map
- 
+f,ax = plt.subplots(figsize=(40, 40))
+sns.heatmap(features.corr(), annot=True, linewidths=.9, fmt= '.1f',ax=ax)
+
 
 '''
 feature selection
@@ -308,10 +327,6 @@ cat_fea_sel = sklearn.feature_selection.f_classif(categorical_features, Y)
     
 # method2: removing features with low variance  
 features_2 = VarianceThreshold(1).fit_transform(features)
-Features_2 = pd.DataFrame([features_2])
-#correlation map
-f,ax = plt.subplots(figsize=(40, 40))
-sns.heatmap(features_2.corr(), annot=True, linewidths=.9, fmt= '.1f',ax=ax)
 
 # method3: univariate feature selection
 #features_3 = SelectKBest(chi2, k=90).fit_transform(X, y)
@@ -372,36 +387,25 @@ start = time.time()
 
 print('......................Start train all data .......................')
 
-train = lgb.Dataset(features, y)
+model = XGBClassifier()
+model.fit(features, y)
 
-params = {
-    'boosting_type': 'gbdt',
-    'objective': 'binary',
-    'metric': {'auc'},
-    'max_depth': 4,
-    'min_child_weight': 6,
-    'num_leaves': 16,
-    'learning_rate': 0.02,
-    'feature_fraction': 0.7,
-    'bagging_fraction': 0.7,
-    'bagging_freq': 5,
-    'lambda_l1':0.25,
-    'lambda_l2':0.5,
-    'scale_pos_weight':1,
-}
-model = lgb.train(params,
-                train,
-                num_boost_round=450,
-                valid_sets=train,
-                early_stopping_rounds=100,
-                verbose_eval=100)
+print(model.feature_importances_)
+
+# plot
+pyplot.bar(range(len(model.feature_importances_)), model.feature_importances_)
+pyplot.show()
+
+	
+# plot feature importance
+my_plot_importance(booster=model, figsize=(15,20))
+pyplot.show()
+  
 
 end = time.time()
 print("......................run with time: ",(end - start) / 60.0 )
 print("over:*********************************")
 
-lgb.plot_importance(model,max_num_features = 30,figsize=(20,10))
-plt.show()
 
 df = pd.DataFrame({'feature': features,'importance': model.feature_importance()}).sort_values(by='importance',ascending = False) 
 use = df.loc[df['importance']!=0,'feature'].tolist()
