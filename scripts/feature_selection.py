@@ -34,7 +34,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import LinearSVC
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, accuracy_score
 from sklearn.pipeline import Pipeline
 #from imblearn.over_sampling import RandomOverSampler
 from collections import Counter
@@ -381,12 +381,6 @@ features2_indices = get_feature_indices(data_set = features, feature_set = featu
 '''
 rank
 '''
-
-print("start：********************************")
-start = time.time()
-
-print('......................Start train all data .......................')
-
 model = XGBClassifier()
 model.fit(features, y)
 
@@ -395,24 +389,45 @@ print(model.feature_importances_)
 # plot
 pyplot.bar(range(len(model.feature_importances_)), model.feature_importances_)
 pyplot.show()
-
+#print((len(model.feature_importances_)))
 	
 # plot feature importance
 my_plot_importance(booster=model, figsize=(15,20))
 pyplot.show()
-  
-
-end = time.time()
-print("......................run with time: ",(end - start) / 60.0 )
-print("over:*********************************")
 
 
-df = pd.DataFrame({'feature': features,'importance': model.feature_importance()}).sort_values(by='importance',ascending = False) 
-use = df.loc[df['importance']!=0,'feature'].tolist()
-print('No. of important features: ',len(use))
-print('important features：',use)
+# get selected features
+#selection = SelectFromModel(model, threshold=0.02, prefit=True)
+#selected_features = selection.transform(features)
+
+# train model based on selected features
+##selection_model = XGBClassifier()
+#selection_model.fit(selected_features, y)
+
+# get selected test set
+#select_x_test = selection.transform(test)
+
+# evaluate new model
+#y_pred = selection_model.predict(select_x_test)
 
 
+# Fit model using each importance as a threshold
+# thresholds = np.unique(np.sort(model.feature_importances_))
+thresholds = [0.001]
+for thresh in thresholds:
+    if thresh > 0:
+    	# select features using threshold
+    	selection = SelectFromModel(model, threshold=thresh, prefit=True)
+    	selected_features = selection.transform(features)
+    	# train model
+    	selection_model = XGBClassifier()
+    	selection_model.fit(selected_features, y)
+    	# eval model
+    	select_X_test = selection.transform(x_test)
+    	y_pred = selection_model.predict(select_X_test)
+    	predictions = [round(value) for value in y_pred]
+    	accuracy = accuracy_score(y_test, predictions)
+    	print("Thresh=%.3f, n=%d, Accuracy: %.6f%%" % (thresh, selected_features.shape[1], accuracy*100.0-95))
 
 '''
 model
@@ -455,8 +470,11 @@ np.savetxt(os.path.join(out_dir, 'y_predict1.csv'), y_predict1, delimiter=",")
 LGBM_model = LGBMClassifier(n_jobs=-1, learning_rate=0.01, min_split_gain=0.02, reg_alpha=0.04,
                             min_child_weight=0, reg_lambda=0.07, n_estimators=200, max_depth=4, num_leaves=20
                             )
-LGBM_model.fit(features, y)
-y_predict2 = LGBM_model.predict_proba(test)[:, 1]
+LGBM_model.fit(selected_features, y)
+
+
+select_x = selection.transform(test)
+y_predict2 = LGBM_model.predict_proba(select_x)
 
 np.savetxt(os.path.join(out_dir, 'y_predict2.csv'), y_predict2, delimiter=",")
 
